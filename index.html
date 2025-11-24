@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>关门实验</title>
+    <style>
+        :root {
+            --bg-color: #2c3e50;
+            --text-color: #ecf0f1;
+            --door-base: #e67e22;
+            --door-border: #d35400;
+            --accent: #27ae60;
+            --selected-glow: 0 0 15px #f1c40f;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 15px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            justify-content: space-between;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            opacity: 0.8;
+            margin-bottom: 2px;
+        }
+
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: bold;
+            font-family: monospace;
+        }
+
+        #game-area {
+            flex: 1;
+            display: flex;
+            justify-content: space-evenly;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        .door-container {
+            width: 30%;
+            max-width: 140px;
+            height: 240px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .door {
+            width: 100%;
+            height: 100%;
+            background-color: var(--door-base);
+            border: 6px solid var(--door-border);
+            border-radius: 6px;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.1s, box-shadow 0.3s;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .door:active {
+            transform: scale(0.95) !important;
+        }
+
+        /* 当前选中的门会有高亮，表示正在连续开采 */
+        .door.active-mining {
+            border-color: #f1c40f;
+            box-shadow: var(--selected-glow);
+        }
+
+        .door.gone {
+            display: none;
+        }
+
+        .knob {
+            width: 14px;
+            height: 14px;
+            background: #f39c12;
+            border-radius: 50%;
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        /* 两种飘字：收益(金色) 和 消耗(灰色) */
+        .float-text {
+            position: absolute;
+            font-weight: bold;
+            font-size: 1.4rem;
+            pointer-events: none;
+            animation: floatUp 0.8s ease-out forwards;
+            z-index: 20;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+        }
+
+        .float-gain {
+            color: #f1c40f;
+            font-size: 1.6rem;
+        }
+
+        .float-cost {
+            color: #bdc3c7;
+            font-size: 1.1rem;
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-60px) scale(1.2);
+                opacity: 0;
+            }
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(44, 62, 80, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            padding: 30px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        h1 {
+            color: #fff;
+            margin: 0 0 10px 0;
+        }
+
+        .desc {
+            color: #bdc3c7;
+            line-height: 1.6;
+            max-width: 500px;
+            margin-bottom: 30px;
+            text-align: left;
+            font-size: 0.95rem;
+        }
+
+        .result-stat {
+            margin: 10px 0;
+            color: #fff;
+        }
+
+        .highlight {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+            transition: transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        /* 门快消失时的警示红 */
+        .door.danger {
+            background-color: #c0392b;
+            border-color: #96281b;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="stat-item">
+            <span class="stat-label">剩余机会</span>
+            <span class="stat-value" id="clicks-display">100</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">累计现金</span>
+            <span class="stat-value" id="score-display">$0</span>
+        </div>
+    </header>
+
+    <div id="game-area"></div>
+
+    <div id="overlay">
+        <h1 id="title">关门实验</h1>
+        <div id="content">
+            <div class="desc">
+                <p><strong>游戏规则（请仔细阅读）：</strong></p>
+                <ol>
+                    <li>你有 <strong>100次</strong> 点击机会。</li>
+                    <li><strong>重点规则：每次切换去点另一扇门时，需要消耗1次点击来“重新激活”该门（不给钱）。</strong></li>
+                    <li>只有连续点击同一扇门，才能持续获得现金。</li>
+                    <li>如果一扇门长时间不被点击，它会缩小并<strong>永久消失</strong>。</li>
+                </ol>
+                <p style="color:#f1c40f; text-align:center; margin-top:10px;">你会为了保住所有的门，而频繁切换吗？</p>
+            </div>
+            <button onclick="startGame()">开始挑战</button>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            totalClicks: 100,
+            decayRate: 0.12,       // 门缩小的速率
+            shrinkStartMs: 300,    // 多少毫秒未点击开始缩小
+            payouts: [             // 三个档位的收益
+                { min: 12, max: 20 },
+                { min: 7, max: 11 },
+                { min: 2, max: 5 }
+            ]
+        };
+
+        let state = {
+            clicksLeft: 0,
+            score: 0,
+            currentDoorId: null, // 记录当前正在“开采”的门ID
+            switchCount: 0,      // 记录玩家切换门的次数（统计用）
+            doors: [],
+            isPlaying: false,
+            lastFrameTime: 0,
+            animId: null
+        };
+
+        let audioCtx = null;
+
+        function playClickSound(isSwitch) {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.value = isSwitch ? 280 : 520;
+            gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+        }
+
+        const els = {
+            gameArea: document.getElementById('game-area'),
+            clicks: document.getElementById('clicks-display'),
+            score: document.getElementById('score-display'),
+            overlay: document.getElementById('overlay'),
+            title: document.getElementById('title'),
+            content: document.getElementById('content')
+        };
+
+        // 洗牌算法
+        function shuffle(arr) {
+            return arr.sort(() => Math.random() - 0.5);
+        }
+
+        function startGame() {
+            state.clicksLeft = CONFIG.totalClicks;
+            state.score = 0;
+            state.currentDoorId = null;
+            state.switchCount = 0;
+            state.isPlaying = true;
+            state.doors = [];
+
+            els.overlay.style.display = 'none';
+            els.gameArea.innerHTML = '';
+            updateHeader();
+
+            // 初始化门
+            let configs = shuffle([...CONFIG.payouts]);
+            configs.forEach((cfg, idx) => {
+                state.doors.push({
+                    id: idx,
+                    size: 100,
+                    active: true,
+                    lastTouch: Date.now(),
+                    min: cfg.min,
+                    max: cfg.max
+                });
+            });
+
+            renderDoors();
+            state.lastFrameTime = Date.now();
+            loop();
+        }
+
+        function renderDoors() {
+            state.doors.forEach(door => {
+                let wrap = document.createElement('div');
+                wrap.className = 'door-container';
+
+                let d = document.createElement('div');
+                d.className = 'door';
+                d.id = `door-${door.id}`;
+                d.onclick = (e) => handleClick(door, e);
+
+                // 门把手
+                let k = document.createElement('div');
+                k.className = 'knob';
+
+                d.appendChild(k);
+                wrap.appendChild(d);
+                els.gameArea.appendChild(wrap);
+
+                door.el = d; // 缓存DOM引用
+            });
+        }
+
+        function handleClick(door, e) {
+            if (!state.isPlaying || !door.active || state.clicksLeft <= 0) return;
+
+            state.clicksLeft--;
+            door.size = 100; // 门回满血
+            door.lastTouch = Date.now();
+
+            // ========== 核心逻辑修改 ==========
+            let reward = 0;
+            let isSwitching = (state.currentDoorId !== door.id);
+
+            if (isSwitching) {
+                // 切换惩罚逻辑
+                state.currentDoorId = door.id;
+                state.switchCount++;
+                reward = 0; // 无收益
+                showFloat(e.clientX, e.clientY, "重新激活", "cost");
+                playClickSound(true);
+
+                // 更新视觉：移除其他门的高亮，高亮当前门
+                state.doors.forEach(d => d.el?.classList.remove('active-mining'));
+                door.el.classList.add('active-mining');
+            } else {
+                // 连续点击逻辑
+                reward = Math.floor(Math.random() * (door.max - door.min + 1)) + door.min;
+                state.score += reward;
+                showFloat(e.clientX, e.clientY, `+$${reward}`, "gain");
+                playClickSound(false);
+            }
+            // ==================================
+
+            updateHeader();
+
+            if (state.clicksLeft <= 0) endGame();
+        }
+
+        function loop() {
+            if (!state.isPlaying) return;
+
+            let now = Date.now();
+            state.doors.forEach(door => {
+                if (!door.active) return;
+
+                // 只有当门不是当前正在点的那个，或者虽然是当前门但很久没点了，才会开始缩小
+                // 实际上原文逻辑是：不去点它，它就缩小。不管是不是当前选中的。
+                if (now - door.lastTouch > CONFIG.shrinkStartMs) {
+                    door.size -= CONFIG.decayRate;
+
+                    // 变红警告
+                    if (door.size < 35) door.el.classList.add('danger');
+                    else door.el.classList.remove('danger');
+                }
+
+                if (door.size <= 0) {
+                    door.size = 0;
+                    door.active = false;
+                    door.el.classList.add('gone');
+                    // 如果当前选中的门消失了，重置选中状态
+                    if (state.currentDoorId === door.id) {
+                        state.currentDoorId = null;
+                    }
+                    // 显示“已消失”文字
+                    let msg = document.createElement('div');
+                    msg.innerText = "已消失";
+                    msg.style.color = "#7f8c8d";
+                    msg.style.fontSize = "0.9rem";
+                    door.el.parentElement.appendChild(msg);
+                } else {
+                    door.el.style.transform = `scale(${door.size / 100})`;
+                }
+            });
+
+            state.animId = requestAnimationFrame(loop);
+        }
+
+        function updateHeader() {
+            els.clicks.innerText = state.clicksLeft;
+            els.score.innerText = `$${state.score}`;
+        }
+
+        function showFloat(x, y, text, type) {
+            let el = document.createElement('div');
+            el.className = `float-text float-${type}`;
+            el.innerText = text;
+            // 简单的防重叠偏移
+            let offsetX = (Math.random() - 0.5) * 20;
+            el.style.left = (x + offsetX) + 'px';
+            el.style.top = (y - 20) + 'px';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 800);
+        }
+
+        function endGame() {
+            state.isPlaying = false;
+            cancelAnimationFrame(state.animId);
+
+            // 计算效率
+            let wastedClicks = state.switchCount; // 每一次切换都浪费了1次点击
+            let efficiency = Math.round(((100 - wastedClicks) / 100) * 100);
+
+            els.title.innerText = "实验结束";
+            els.content.innerHTML = `
+                <div style="margin-bottom:20px;">
+                    <h2 style="color:#f1c40f; font-size:2.5rem; margin:10px 0;">$${state.score}</h2>
+                    <div class="result-stat">你在门之间切换了 <span class="highlight">${state.switchCount}</span> 次</div>
+                    <div class="result-stat">这浪费了你 <span class="highlight">${wastedClicks}%</span> 的点击机会！</div>
+                </div>
+                <div class="desc">
+                    <p><strong>原理解析：</strong><br>
+                    这就是“非理性执着”。为了保留那些正在消失的选项（门），我们不惜频繁切换，支付了昂贵的“切换成本”（每次切换都不得分）。<br><br>
+                    如果不去管其他门，只盯着收益最高的那扇门猛点，虽然其他门会消失，但你省下了所有的切换成本，最终收益往往更高。</p>
+                </div>
+                <button onclick="startGame()">再试一次</button>
+            `;
+            els.overlay.style.display = 'flex';
+        }
+    </script>
+</body>
+
+</html>
