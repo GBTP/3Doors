@@ -171,7 +171,7 @@
         .desc {
             color: #bdc3c7;
             line-height: 1.6;
-            max-width: 500px;
+            max-width: 600px;
             margin-bottom: 30px;
             text-align: left;
             font-size: 0.95rem;
@@ -231,14 +231,14 @@
         <h1 id="title">关门实验</h1>
         <div id="content">
             <div class="desc">
-                <p><strong>游戏规则（请仔细阅读）：</strong></p>
+                <p><strong>游戏规则：</strong></p>
                 <ol>
-                    <li>你有 <strong>100次</strong> 点击机会。</li>
-                    <li><strong>重点规则：每次切换去点另一扇门时，需要消耗1次点击来“重新激活”该门（不给钱）。</strong></li>
-                    <li>只有连续点击同一扇门，才能持续获得现金。</li>
-                    <li>如果一扇门长时间不被点击，它会缩小并<strong>永久消失</strong>。</li>
+                    <li>你有 <strong>100次</strong> 点击门的机会。</li>
+                    <li>初始状态下，所有门都是关闭的。点击关闭的门可以将该门打开，但同时已打开的其他门（若有）会 <strong>关闭</strong>。</li>
+                    <li>点击 <strong>打开的门</strong> 可以获得数额不等的 <strong>钱</strong> 。</li>
+                    <li>如果一扇门长时间不被点击，它会缩小并 <strong>永久消失</strong> 。</li>
                 </ol>
-                <p style="color:#f1c40f; text-align:center; margin-top:10px;">你会为了保住所有的门，而频繁切换吗？</p>
+                <p style="color:#f1c40f; text-align:center; margin-top:10px;">来比一比谁能拿到的钱更多！</p>
             </div>
             <button onclick="startGame()">开始挑战</button>
         </div>
